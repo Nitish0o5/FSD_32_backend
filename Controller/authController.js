@@ -15,6 +15,10 @@ export const registerUser = async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
 
+        if (!['EMPLOYEE', 'TRAINER'].includes(role)) {
+            return res.status(400).json({ message: 'Invalid role selected' });
+        }
+
         const userExists = await User.findOne({ email });
         if (userExists) {
             return res.status(400).json({ message: 'User already exists' });

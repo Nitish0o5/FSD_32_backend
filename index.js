@@ -6,6 +6,8 @@ import connectDB from './Database/connection.js';
 import authRouter from './Routers/authRouter.js';
 import trainingRouter from './Routers/trainingRouter.js';
 import enrollmentRouter from './Routers/enrollmentRouter.js';
+import adminRouter from './Routers/adminRouter.js';
+import statsRouter from './Routers/statsRouter.js';
 
 dotenv.config();
 
@@ -24,6 +26,8 @@ app.use(cors({
 app.use('/api/auth', authRouter);
 app.use('/api/trainings', trainingRouter);
 app.use('/api/enrollments', enrollmentRouter);
+app.use('/api/admin', adminRouter);
+app.use('/api/stats', statsRouter);
 
 app.get('/', (req, res) => {
     res.send('Training Enrollment System API is running');
