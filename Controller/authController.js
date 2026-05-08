@@ -1,62 +1,113 @@
 import User from '../Models/userModel.js';
-import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { asyncHandler } from '../Middleware/errorMiddleware.js';
 
-const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET, {
-        expiresIn: '30d'
-    });
-};
+// Use the more complete auth implementation from files/
+const generateToken = (id) =>
+  jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  });
 
-// @desc    Register a new user
+// @desc    Register new user
 // @route   POST /api/auth/register
 // @access  Public
-export const registerUser = async (req, res) => {
-    try {
-        const { name, email, password, role } = req.body;
+const register = asyncHandler(async (req, res) => {
+    const { name, email, password, role } = req.body;
 
-        if (!['EMPLOYEE', 'TRAINER'].includes(role)) {
-            return res.status(400).json({ message: 'Invalid role selected' });
-        }
+    // Prevent self-assigning admin role
+    const assignedRole = role === 'instructor' ? 'instructor' : 'learner';
 
-        const userExists = await User.findOne({ email });
-        if (userExists) {
-            return res.status(400).json({ message: 'User already exists' });
-        }
+    const user = await User.create({ name, email, password, role: assignedRole });
+    const token = generateToken(user._id);
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+    res.status(201).json({
+        success: true,
+        message: 'Account created successfully!',
+        token,
+        user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            avatar: user.avatar,
+        },
+    });
+});
 
-        const user = await User.create({
-            name,
-            email,
-            password: hashedPassword,
-            role
-        });
+// @desc    Login user
+// @route   POST /api/auth/login
+// @access  Public
+const login = asyncHandler(async (req, res) => {
+    const { email, password } = req.body;
 
-        if (user) {
-            const token = generateToken(user._id);
-            res.cookie('jwt', token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV !== 'development', // Use secure cookies in production
-                sameSite: 'strict',
-                maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-            });
-
-            res.status(201).json({
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                token
-            });
-        } else {
-            res.status(400).json({ message: 'Invalid user data' });
-        }
-    } catch (error) {
-        res.status(500).json({ message: error.message });
+    if (!email || !password) {
+        return res
+            .status(400)
+            .json({ success: false, message: 'Email and password are required.' });
     }
-};
+
+    const user = await User.findOne({ email }).select('+password');
+
+    if (!user || !(await user.comparePassword(password))) {
+        return res
+            .status(401)
+            .json({ success: false, message: 'Invalid email or password.' });
+    }
+
+    if (!user.isActive) {
+        return res
+            .status(403)
+            .json({ success: false, message: 'Account has been deactivated.' });
+    }
+
+    // Update last active
+    user.lastActiveAt = Date.now();
+    await user.save({ validateBeforeSave: false });
+
+    const token = generateToken(user._id);
+
+    res.status(200).json({
+        success: true,
+        message: 'Logged in successfully!',
+        token,
+        user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            avatar: user.avatar,
+        },
+    });
+});
+
+// @desc    Get current logged-in user
+// @route   GET /api/auth/me
+// @access  Private
+const getMe = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user.id).populate({
+        path: 'enrolledCourses',
+        populate: { path: 'course', select: 'title thumbnail category' },
+    });
+
+    res.status(200).json({ success: true, user });
+});
+
+// @desc    Update profile
+// @route   PUT /api/auth/me
+// @access  Private
+const updateProfile = asyncHandler(async (req, res) => {
+    const { name, bio, avatar } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+        req.user.id,
+        { name, bio, avatar },
+        { new: true, runValidators: true }
+    );
+
+    res.status(200).json({ success: true, user });
+});
+
+export { register, login, getMe, updateProfile };
 
 // @desc    Auth user & get token
 // @route   POST /api/auth/login

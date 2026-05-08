@@ -2,51 +2,45 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
 const EmployeeDashboard = () => {
-    const [trainings, setTrainings] = useState([]);
+    const [courses, setCourses] = useState([]);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [successMsg, setSuccessMsg] = useState('');
     const [filters, setFilters] = useState({
         search: '',
-        trainer: '',
-        from: '',
-        to: '',
-        availability: 'all'
+        category: '',
+        level: 'all'
     });
 
-    const fetchTrainings = useCallback(async (nextFilters) => {
+    const fetchCourses = useCallback(async (nextFilters) => {
         try {
             const params = {};
             if (nextFilters.search.trim()) params.search = nextFilters.search.trim();
-            if (nextFilters.trainer.trim()) params.trainer = nextFilters.trainer.trim();
-            if (nextFilters.from) params.from = nextFilters.from;
-            if (nextFilters.to) params.to = nextFilters.to;
-            if (nextFilters.availability !== 'all') params.availability = nextFilters.availability;
+            if (nextFilters.category.trim()) params.category = nextFilters.category.trim();
+            if (nextFilters.level !== 'all') params.level = nextFilters.level;
 
             setError(null);
-            const [trainingsRes, statsRes] = await Promise.all([
-                api.get('/trainings', { params }),
-                api.get('/stats/dashboard')
+            const [coursesRes, statsRes] = await Promise.all([
+                api.get('/courses', { params }),
+                api.get('/stats')
             ]);
-            setTrainings(trainingsRes.data);
-            setStats(statsRes.data);
+            setCourses(coursesRes.data.courses);
+            setStats(statsRes.data.stats);
         } catch {
-            setError('Failed to fetch trainings');
+            setError('Failed to fetch courses');
         } finally {
             setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchTrainings({
+        fetchCourses({
             search: '',
-            trainer: '',
-            from: '',
-            to: '',
-            availability: 'all'
+            category: '',
+            level: 'all'
         });
-    }, [fetchTrainings]);
+    }, [fetchCourses]);
 
     const handleFilterChange = (key, value) => {
         setFilters((prev) => ({ ...prev, [key]: value }));
@@ -55,31 +49,28 @@ const EmployeeDashboard = () => {
     const handleApplyFilters = async (e) => {
         e.preventDefault();
         setLoading(true);
-        await fetchTrainings(filters);
+        await fetchCourses(filters);
     };
 
     const handleClearFilters = async () => {
         const cleared = {
             search: '',
-            trainer: '',
-            from: '',
-            to: '',
-            availability: 'all'
+            category: '',
+            level: 'all'
         };
 
         setFilters(cleared);
         setLoading(true);
-        await fetchTrainings(cleared);
+        await fetchCourses(cleared);
     };
 
-    const handleEnroll = async (trainingId) => {
+    const handleEnroll = async (courseId) => {
         setError(null);
         setSuccessMsg('');
         try {
-            await api.post(`/enrollments/${trainingId}`);
-            setSuccessMsg('Successfully enrolled in training!');
-            // Refresh to update seat count
-            fetchTrainings(filters);
+            await api.post(`/enrollments/${courseId}`);
+            setSuccessMsg('Successfully enrolled in course!');
+            fetchCourses(filters);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to enroll');
         }
@@ -89,7 +80,7 @@ const EmployeeDashboard = () => {
 
     return (
         <div className="container dashboard-content">
-            <h2 className="mb-6">Available Training Sessions</h2>
+            <h2 className="mb-6">Available Courses</h2>
 
             {error && <div className="alert alert-error">{error}</div>}
             {successMsg && <div className="alert" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.2)' }}>{successMsg}</div>}
@@ -97,16 +88,16 @@ const EmployeeDashboard = () => {
             {stats && (
                 <div className="grid grid-cols-3 mb-6">
                     <div className="card">
-                        <p className="text-secondary">Open Trainings</p>
-                        <h3>{stats.availableTrainings}</h3>
+                        <p className="text-secondary">Total Courses</p>
+                        <h3>{stats.totalCourses || 0}</h3>
                     </div>
                     <div className="card">
-                        <p className="text-secondary">Upcoming Open Trainings</p>
-                        <h3>{stats.upcomingAvailableTrainings}</h3>
+                        <p className="text-secondary">Total Enrollments</p>
+                        <h3>{stats.totalEnrollments || 0}</h3>
                     </div>
                     <div className="card">
-                        <p className="text-secondary">My Enrollments</p>
-                        <h3>{stats.myEnrollments}</h3>
+                        <p className="text-secondary">Completion Rate</p>
+                        <h3>{stats.completionRate || '0%'}</h3>
                     </div>
                 </div>
             )}
@@ -114,110 +105,103 @@ const EmployeeDashboard = () => {
             <form className="glass-panel mb-6" style={{ padding: '1.25rem' }} onSubmit={handleApplyFilters}>
                 <div className="grid grid-cols-3">
                     <div className="input-group">
-                        <label className="input-label">Search by title/description</label>
+                        <label className="input-label">Search courses</label>
                         <input
                             type="text"
                             className="input-field"
-                            placeholder="e.g. React, leadership"
+                            placeholder="e.g. React, Python"
                             value={filters.search}
                             onChange={(e) => handleFilterChange('search', e.target.value)}
                         />
                     </div>
 
                     <div className="input-group">
-                        <label className="input-label">Trainer name</label>
-                        <input
-                            type="text"
-                            className="input-field"
-                            placeholder="e.g. John"
-                            value={filters.trainer}
-                            onChange={(e) => handleFilterChange('trainer', e.target.value)}
-                        />
-                    </div>
-
-                    <div className="input-group">
-                        <label className="input-label">Availability</label>
+                        <label className="input-label">Category</label>
                         <select
                             className="input-field"
-                            value={filters.availability}
-                            onChange={(e) => handleFilterChange('availability', e.target.value)}
+                            value={filters.category}
+                            onChange={(e) => handleFilterChange('category', e.target.value)}
                         >
-                            <option value="all">All</option>
-                            <option value="open">Open</option>
-                            <option value="full">Full</option>
+                            <option value="">All Categories</option>
+                            <option value="Web Development">Web Development</option>
+                            <option value="Data Science">Data Science</option>
+                            <option value="Design">Design</option>
+                            <option value="Mobile Development">Mobile Development</option>
+                            <option value="DevOps">DevOps</option>
+                            <option value="AI & Machine Learning">AI & Machine Learning</option>
+                            <option value="Business">Business</option>
                         </select>
                     </div>
 
                     <div className="input-group">
-                        <label className="input-label">From date</label>
-                        <input
-                            type="date"
+                        <label className="input-label">Level</label>
+                        <select
                             className="input-field"
-                            value={filters.from}
-                            onChange={(e) => handleFilterChange('from', e.target.value)}
-                        />
+                            value={filters.level}
+                            onChange={(e) => handleFilterChange('level', e.target.value)}
+                        >
+                            <option value="all">All Levels</option>
+                            <option value="beginner">Beginner</option>
+                            <option value="intermediate">Intermediate</option>
+                            <option value="advanced">Advanced</option>
+                        </select>
                     </div>
 
-                    <div className="input-group">
-                        <label className="input-label">To date</label>
-                        <input
-                            type="date"
-                            className="input-field"
-                            value={filters.to}
-                            onChange={(e) => handleFilterChange('to', e.target.value)}
-                        />
-                    </div>
-
-                    <div className="flex items-center gap-4" style={{ marginTop: '1.8rem' }}>
+                    <div className="flex items-center gap-4" style={{ marginTop: '1.8rem', gridColumn: 'span 3' }}>
                         <button type="submit" className="btn btn-primary" disabled={loading}>
-                            {loading ? 'Applying...' : 'Apply Filters'}
+                            {loading ? 'Searching...' : 'Search'}
                         </button>
                         <button type="button" className="btn btn-secondary" onClick={handleClearFilters} disabled={loading}>
-                            Clear
+                            Clear Filters
                         </button>
                     </div>
                 </div>
             </form>
 
             <div className="grid grid-cols-3">
-                {trainings.length === 0 ? (
-                    <p className="text-secondary" style={{ gridColumn: 'span 3' }}>No active trainings available at the moment.</p>
+                {courses.length === 0 ? (
+                    <p className="text-secondary" style={{ gridColumn: 'span 3' }}>No courses available at the moment.</p>
                 ) : (
-                    trainings.map(t => {
-                        const isFull = t.seatsFilled >= t.seatLimit;
-                        return (
-                            <div key={t._id} className="card flex" style={{ flexDirection: 'column' }}>
-                                <div style={{ flex: 1 }}>
-                                    <h3 className="card-title">{t.title}</h3>
-                                    <p className="mb-4">{t.description}</p>
-                                    <div className="card-meta">
-                                        <div className="meta-item">
-                                            Trainer: <span style={{ color: 'white' }}>{t.trainerId?.name || 'Unknown'}</span>
-                                        </div>
+                    courses.map(course => (
+                        <div key={course._id} className="card flex" style={{ flexDirection: 'column' }}>
+                            <div style={{ flex: 1 }}>
+                                <h3 className="card-title">{course.title}</h3>
+                                <p className="mb-4" style={{ fontSize: '0.9rem' }}>{course.shortDescription || course.description}</p>
+                                <div className="card-meta">
+                                    <div className="meta-item">
+                                        <span className="badge badge-blue">{course.category}</span>
                                     </div>
-                                    <div className="card-meta">
-                                        <div className="meta-item">
-                                            <span className="badge badge-blue">{new Date(t.startTime).toLocaleString()}</span>
-                                        </div>
+                                    <div className="meta-item">
+                                        <span className={`badge ${course.level === 'beginner' ? 'badge-green' : course.level === 'intermediate' ? 'badge-yellow' : 'badge-red'}`}>
+                                            {course.level}
+                                        </span>
                                     </div>
                                 </div>
-
-                                <div className="flex justify-between items-center mt-4 pt-4" style={{ borderTop: '1px solid var(--border-color)' }}>
-                                    <span className="text-secondary text-sm">
-                                        Seats: {t.seatLimit - t.seatsFilled} left
-                                    </span>
-                                    <button
-                                        onClick={() => handleEnroll(t._id)}
-                                        disabled={isFull}
-                                        className={`btn ${isFull ? 'btn-secondary' : 'btn-success'}`}
-                                        style={{ opacity: isFull ? 0.5 : 1, cursor: isFull ? 'not-allowed' : 'pointer' }}
-                                    >
-                                        {isFull ? 'Full' : 'Enroll Now'}
-                                    </button>
+                                {course.isFree ? (
+                                    <p style={{ color: '#34d399', marginTop: '0.5rem', fontWeight: 'bold' }}>FREE</p>
+                                ) : (
+                                    <p style={{ color: 'var(--accent-primary)', marginTop: '0.5rem', fontWeight: 'bold' }}>${course.price}</p>
+                                )}
+                                <div className="card-meta" style={{ marginTop: '0.5rem' }}>
+                                    <div className="meta-item">
+                                        Instructor: <span style={{ color: 'white' }}>{course.instructor?.name || 'Unknown'}</span>
+                                    </div>
                                 </div>
                             </div>
-                        );
-                    })
+
+                            <div className="flex justify-between items-center mt-4 pt-4" style={{ borderTop: '1px solid var(--border-color)' }}>
+                                <span className="text-secondary text-sm">
+                                    {course.enrollmentCount} enrolled
+                                </span>
+                                <button
+                                    onClick={() => handleEnroll(course._id)}
+                                    className="btn btn-success"
+                                >
+                                    Enroll Now
+                                </button>
+                            </div>
+                        </div>
+                    ))
                 )}
             </div>
         </div>

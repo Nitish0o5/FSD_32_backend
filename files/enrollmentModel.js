@@ -1,35 +1,35 @@
-import mongoose from 'mongoose';
+const mongoose = require("mongoose");
 
 const enrollmentSchema = new mongoose.Schema(
   {
     learner: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     course: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Course',
+      ref: "Course",
       required: true,
     },
     status: {
       type: String,
-      enum: ['active', 'completed', 'dropped', 'waitlisted'],
-      default: 'active',
+      enum: ["active", "completed", "dropped", "waitlisted"],
+      default: "active",
     },
     progress: {
-      type: Number,
+      type: Number, // percentage 0-100
       default: 0,
     },
     completedLessons: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Lesson',
+        ref: "Lesson",
       },
     ],
     lastAccessedLesson: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Lesson',
+      ref: "Lesson",
       default: null,
     },
     completedAt: {
@@ -43,15 +43,16 @@ const enrollmentSchema = new mongoose.Schema(
     },
     rating: {
       score: { type: Number, min: 1, max: 5, default: null },
-      review: { type: String, default: '' },
+      review: { type: String, default: "" },
       reviewedAt: { type: Date, default: null },
     },
+    // Payment info (for paid courses)
     payment: {
       amount: { type: Number, default: 0 },
       status: {
         type: String,
-        enum: ['free', 'paid', 'refunded'],
-        default: 'free',
+        enum: ["free", "paid", "refunded"],
+        default: "free",
       },
       transactionId: { type: String, default: null },
     },
@@ -62,4 +63,4 @@ const enrollmentSchema = new mongoose.Schema(
 // Prevent duplicate enrollments
 enrollmentSchema.index({ learner: 1, course: 1 }, { unique: true });
 
-export default mongoose.model('Enrollment', enrollmentSchema);
+module.exports = mongoose.model("Enrollment", enrollmentSchema);

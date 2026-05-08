@@ -3,123 +3,91 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 
 const TrainerDashboard = () => {
-    const [trainings, setTrainings] = useState([]);
+    const [courses, setCourses] = useState([]);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [successMsg, setSuccessMsg] = useState('');
 
-    const [enrollments, setEnrollments] = useState(null); // specific training enrollments
-    const [activeTrainingId, setActiveTrainingId] = useState(null);
-    const [editingTrainingId, setEditingTrainingId] = useState(null);
-    const [editForm, setEditForm] = useState({
-        title: '',
-        description: '',
-        startTime: '',
-        seatLimit: ''
-    });
+    const [courseEnrollments, setCourseEnrollments] = useState(null);
+    const [activeCourseId, setActiveCourseId] = useState(null);
     const [actionLoadingId, setActionLoadingId] = useState(null);
 
     useEffect(() => {
-        fetchTrainings();
+        fetchCourses();
     }, []);
 
-    const fetchTrainings = async () => {
+    const fetchCourses = async () => {
         try {
             setError(null);
-            const [trainingsRes, statsRes] = await Promise.all([
-                api.get('/trainings/trainer'),
-                api.get('/stats/dashboard')
-            ]);
-            setTrainings(trainingsRes.data);
-            setStats(statsRes.data);
-        } catch {
-            setError('Failed to load your trainings');
+            const coursesRes = await api.get('/courses/instructor/my-courses');
+            setCourses(coursesRes.data.courses || coursesRes.data);
+
+            // Stats fetch is non-blocking — instructors may not have admin access
+            try {
+                const statsRes = await api.get('/stats/dashboard');
+                setStats(statsRes.data.stats);
+            } catch {
+                // Stats not available — not critical
+            }
+        } catch (err) {
+            setError('Failed to load your courses');
+            console.error(err);
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchEnrollments = async (id) => {
-        setActiveTrainingId(id);
-        setEnrollments(null); // start loading
+    const fetchCourseEnrollments = async (courseId) => {
+        setActiveCourseId(courseId);
+        setCourseEnrollments(null);
         try {
             setError(null);
-            const { data } = await api.get(`/enrollments/training/${id}`);
-            setEnrollments(data);
-        } catch {
-            setError('Failed to fetch enrollments for this training');
+            // For now, we'll fetch all enrollments - ideally backend would have GET /enrollments/course/:id
+            const { data } = await api.get('/enrollments/my-learning');
+            // Filter for this course
+            const filtered = data.enrollments?.filter(e => e.course?._id === courseId) || [];
+            setCourseEnrollments(filtered);
+        } catch (err) {
+            setError('Failed to fetch enrollments for this course');
         }
     };
 
-    const toInputDateTime = (dateString) => {
-        const date = new Date(dateString);
-        const pad = (n) => String(n).padStart(2, '0');
-        const year = date.getFullYear();
-        const month = pad(date.getMonth() + 1);
-        const day = pad(date.getDate());
-        const hours = pad(date.getHours());
-        const minutes = pad(date.getMinutes());
-        return `${year}-${month}-${day}T${hours}:${minutes}`;
-    };
-
-    const startEdit = (training) => {
-        setEditingTrainingId(training._id);
-        setEditForm({
-            title: training.title,
-            description: training.description,
-            startTime: toInputDateTime(training.startTime),
-            seatLimit: String(training.seatLimit)
-        });
-        setError(null);
-    };
-
-    const cancelEdit = () => {
-        setEditingTrainingId(null);
-        setEditForm({ title: '', description: '', startTime: '', seatLimit: '' });
-    };
-
-    const handleUpdate = async (trainingId) => {
+    const handleUpdateCourseStatus = async (courseId, newStatus) => {
         try {
-            setActionLoadingId(trainingId);
+            setActionLoadingId(courseId);
             setError(null);
+            setSuccessMsg('');
 
-            await api.put(`/trainings/${trainingId}`, {
-                title: editForm.title,
-                description: editForm.description,
-                startTime: editForm.startTime,
-                seatLimit: Number(editForm.seatLimit)
-            });
-
-            cancelEdit();
-            await fetchTrainings();
-
-            if (activeTrainingId === trainingId) {
-                await fetchEnrollments(trainingId);
-            }
+            await api.put(`/admin/courses/${courseId}/status`, { status: newStatus });
+            setSuccessMsg('Course status updated successfully');
+            await fetchCourses();
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to update training');
+            setError(err.response?.data?.message || 'Failed to update course status');
         } finally {
             setActionLoadingId(null);
         }
     };
 
-    const handleDelete = async (trainingId) => {
-        const confirmed = window.confirm('Delete this training session? This will remove related enrollments too.');
+    const handleDeleteCourse = async (courseId) => {
+        const confirmed = window.confirm('Delete this course? This action cannot be undone.');
         if (!confirmed) return;
 
         try {
-            setActionLoadingId(trainingId);
+            setActionLoadingId(courseId);
             setError(null);
+            setSuccessMsg('');
 
-            await api.delete(`/trainings/${trainingId}`);
-            await fetchTrainings();
+            await api.delete(`/courses/${courseId}`);
+            setSuccessMsg('Course deleted successfully');
+            await fetchCourses();
 
-            if (activeTrainingId === trainingId) {
-                setActiveTrainingId(null);
-                setEnrollments(null);
+            if (activeCourseId === courseId) {
+                setActiveCourseId(null);
+                setCourseEnrollments(null);
             }
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to delete training');
+            setError(err.response?.data?.message || 'Failed to delete course');
         } finally {
             setActionLoadingId(null);
         }
@@ -130,164 +98,135 @@ const TrainerDashboard = () => {
     return (
         <div className="container dashboard-content">
             <div className="flex justify-between items-center mb-6">
-                <h2>Your Training Sessions</h2>
-                <Link to="/create-training" className="btn btn-primary">
-                    + Create Session
+                <h2>Your Courses</h2>
+                <Link to="/create-course" className="btn btn-primary">
+                    + Create Course
                 </Link>
             </div>
 
             {error && <div className="alert alert-error">{error}</div>}
+            {successMsg && <div className="alert" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.2)' }}>{successMsg}</div>}
 
             {stats && (
                 <div className="grid grid-cols-4 mb-6">
                     <div className="card">
-                        <p className="text-secondary">My Trainings</p>
-                        <h3>{stats.totalMyTrainings}</h3>
+                        <p className="text-secondary">My Courses</p>
+                        <h3>{stats.totalCourses || 0}</h3>
                     </div>
                     <div className="card">
                         <p className="text-secondary">Total Enrollments</p>
-                        <h3>{stats.totalMyEnrollments}</h3>
+                        <h3>{stats.totalEnrollments || 0}</h3>
                     </div>
                     <div className="card">
-                        <p className="text-secondary">Upcoming Trainings</p>
-                        <h3>{stats.upcomingMyTrainings}</h3>
+                        <p className="text-secondary">Completion Rate</p>
+                        <h3>{stats.completionRate || '0%'}</h3>
                     </div>
                     <div className="card">
-                        <p className="text-secondary">Seats Remaining</p>
-                        <h3>{stats.seatsRemaining}</h3>
+                        <p className="text-secondary">Top Course</p>
+                        <p style={{ color: 'var(--accent-primary)', marginTop: '0.5rem' }}>
+                            {stats.topCourses?.[0]?.title || 'N/A'}
+                        </p>
                     </div>
                 </div>
             )}
 
-            <div className="grid grid-cols-2">
+            <div className="grid grid-cols-2" style={{ gap: '1.5rem' }}>
                 <div>
-                    {trainings.length === 0 ? (
-                        <p className="text-secondary">You haven't created any training sessions yet.</p>
+                    <h3 className="mb-4">Your Courses</h3>
+                    {courses.length === 0 ? (
+                        <p className="text-secondary">You haven't created any courses yet.</p>
                     ) : (
-                        <div className="grid grid-cols-1">
-                            {trainings.map(t => (
-                                <div key={t._id} className="card" onClick={() => fetchEnrollments(t._id)} style={{ cursor: 'pointer', border: activeTrainingId === t._id ? '1px solid var(--accent-primary)' : '' }}>
-                                    {editingTrainingId === t._id ? (
-                                        <div onClick={(e) => e.stopPropagation()}>
-                                            <div className="input-group">
-                                                <label className="input-label">Title</label>
-                                                <input
-                                                    type="text"
-                                                    className="input-field"
-                                                    value={editForm.title}
-                                                    onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="input-group">
-                                                <label className="input-label">Description</label>
-                                                <textarea
-                                                    className="input-field"
-                                                    rows="3"
-                                                    value={editForm.description}
-                                                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="grid grid-cols-2">
-                                                <div className="input-group">
-                                                    <label className="input-label">Date & Time</label>
-                                                    <input
-                                                        type="datetime-local"
-                                                        className="input-field"
-                                                        value={editForm.startTime}
-                                                        onChange={(e) => setEditForm({ ...editForm, startTime: e.target.value })}
-                                                        required
-                                                    />
-                                                </div>
-                                                <div className="input-group">
-                                                    <label className="input-label">Seat Limit</label>
-                                                    <input
-                                                        type="number"
-                                                        className="input-field"
-                                                        min="1"
-                                                        value={editForm.seatLimit}
-                                                        onChange={(e) => setEditForm({ ...editForm, seatLimit: e.target.value })}
-                                                        required
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-4 mt-4">
-                                                <button
-                                                    className="btn btn-secondary btn-full"
-                                                    onClick={cancelEdit}
-                                                    disabled={actionLoadingId === t._id}
-                                                >
-                                                    Cancel
-                                                </button>
-                                                <button
-                                                    className="btn btn-primary btn-full"
-                                                    onClick={() => handleUpdate(t._id)}
-                                                    disabled={actionLoadingId === t._id}
-                                                >
-                                                    {actionLoadingId === t._id ? 'Saving...' : 'Save Changes'}
-                                                </button>
-                                            </div>
+                        <div className="flex flex-col gap-3">
+                            {courses.map(course => (
+                                <div
+                                    key={course._id}
+                                    className="card"
+                                    onClick={() => fetchCourseEnrollments(course._id)}
+                                    style={{
+                                        cursor: 'pointer',
+                                        border: activeCourseId === course._id ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                                        transition: 'all 0.3s ease'
+                                    }}
+                                >
+                                    <h4 className="mb-2">{course.title}</h4>
+                                    <p className="text-secondary text-sm mb-3">{course.shortDescription || course.description}</p>
+                                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                                        <span className="badge badge-blue">{course.category}</span>
+                                        <span className={`badge ${course.level === 'beginner' ? 'badge-green' : course.level === 'intermediate' ? 'badge-yellow' : 'badge-red'}`}>
+                                            {course.level}
+                                        </span>
+                                        <span className={`badge ${course.status === 'published' ? 'badge-green' : course.status === 'draft' ? 'badge-yellow' : 'badge-red'}`}>
+                                            {course.status}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                                        <span className="text-secondary text-sm">
+                                            {course.enrollmentCount} enrolled
+                                        </span>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <Link to={`/edit-course/${course._id}`} className="btn btn-sm" style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}>
+                                                Edit
+                                            </Link>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteCourse(course._id);
+                                                }}
+                                                disabled={actionLoadingId === course._id}
+                                                className="btn btn-danger"
+                                                style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
+                                            >
+                                                Delete
+                                            </button>
                                         </div>
-                                    ) : (
-                                        <>
-                                            <h3 className="card-title">{t.title}</h3>
-                                            <p>{t.description}</p>
-                                            <div className="card-meta">
-                                                <div className="meta-item">
-                                                    <span className="badge badge-blue">{new Date(t.startTime).toLocaleString()}</span>
-                                                </div>
-                                                <div className="meta-item">
-                                                    Seats: {t.seatsFilled} / {t.seatLimit}
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-4 mt-4" onClick={(e) => e.stopPropagation()}>
-                                                <button className="btn btn-secondary btn-full" onClick={() => fetchEnrollments(t._id)}>
-                                                    View Enrollments
-                                                </button>
-                                                <button className="btn btn-secondary btn-full" onClick={() => startEdit(t)}>
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    className="btn btn-full"
-                                                    style={{ background: '#ef4444', color: '#fff' }}
-                                                    onClick={() => handleDelete(t._id)}
-                                                    disabled={actionLoadingId === t._id}
-                                                >
-                                                    {actionLoadingId === t._id ? 'Deleting...' : 'Delete'}
-                                                </button>
-                                            </div>
-                                        </>
-                                    )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     )}
                 </div>
 
-                {/* Enrollments Sidebar */}
                 <div>
-                    {activeTrainingId && (
-                        <div className="card" style={{ position: 'sticky', top: '6rem' }}>
-                            <h3>Enrolled Students</h3>
-                            {!enrollments ? (
-                                <p>Loading enrollments...</p>
-                            ) : enrollments.length === 0 ? (
-                                <p className="text-secondary">No one has enrolled in this session yet.</p>
-                            ) : (
-                                <ul style={{ listStyle: 'none', padding: 0 }}>
-                                    {enrollments.map(e => (
-                                        <li key={e._id} style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
-                                            <div style={{ fontWeight: '500' }}>{e.userId.name}</div>
-                                            <div className="text-secondary" style={{ fontSize: '0.875rem' }}>{e.userId.email}</div>
-                                            <div className="text-secondary" style={{ fontSize: '0.75rem', marginTop: '4px' }}>
-                                                Enrolled: {new Date(e.enrolledAt).toLocaleDateString()}
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
+                    <h3 className="mb-4">Enrollments</h3>
+                    {activeCourseId ? (
+                        courseEnrollments === null ? (
+                            <p className="text-secondary">Loading enrollments...</p>
+                        ) : courseEnrollments.length === 0 ? (
+                            <p className="text-secondary">No enrollments for this course yet.</p>
+                        ) : (
+                            <div className="flex flex-col gap-3">
+                                {courseEnrollments.map((enrollment, idx) => (
+                                    <div key={enrollment._id || idx} className="card">
+                                        <p className="font-semibold">{enrollment.learner?.name || 'Unknown'}</p>
+                                        <p className="text-secondary text-sm mb-2">{enrollment.learner?.email}</p>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                            <span className="text-secondary text-sm">Progress:</span>
+                                            <span className="font-semibold">{enrollment.progress || 0}%</span>
+                                        </div>
+                                        <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden' }}>
+                                            <div
+                                                style={{
+                                                    width: `${enrollment.progress || 0}%`,
+                                                    height: '100%',
+                                                    backgroundColor: 'var(--accent-primary)',
+                                                    transition: 'width 0.3s ease'
+                                                }}
+                                            />
+                                        </div>
+                                        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                            <span className={`badge badge-sm ${enrollment.status === 'completed' ? 'badge-green' : enrollment.status === 'active' ? 'badge-blue' : 'badge-yellow'}`}>
+                                                {enrollment.status}
+                                            </span>
+                                            {enrollment.certificate?.issued && (
+                                                <span className="badge badge-green">Certified</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    ) : (
+                        <p className="text-secondary">Select a course to view enrollments</p>
                     )}
                 </div>
             </div>

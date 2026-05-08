@@ -1,5 +1,5 @@
-import jwt from 'jsonwebtoken';
-import User from '../Models/userModel.js';
+const jwt = require("jsonwebtoken");
+const User = require("../Models/userModel");
 
 // Verify JWT and attach user to request
 const protect = async (req, res, next) => {
@@ -8,25 +8,25 @@ const protect = async (req, res, next) => {
 
     if (
       req.headers.authorization &&
-      req.headers.authorization.startsWith('Bearer')
+      req.headers.authorization.startsWith("Bearer")
     ) {
-      token = req.headers.authorization.split(' ')[1];
+      token = req.headers.authorization.split(" ")[1];
     }
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Access denied. Please log in.',
+        message: "Access denied. Please log in.",
       });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await User.findById(decoded.id).select("-password");
 
     if (!user || !user.isActive) {
       return res.status(401).json({
         success: false,
-        message: 'User not found or account deactivated.',
+        message: "User not found or account deactivated.",
       });
     }
 
@@ -35,7 +35,7 @@ const protect = async (req, res, next) => {
   } catch (error) {
     return res.status(401).json({
       success: false,
-      message: 'Invalid or expired token.',
+      message: "Invalid or expired token.",
     });
   }
 };
@@ -46,11 +46,11 @@ const authorize = (...roles) => {
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: `Access denied. Required role: ${roles.join(' or ')}`,
+        message: `Access denied. Required role: ${roles.join(" or ")}`,
       });
     }
     next();
   };
 };
 
-export { protect, authorize };
+module.exports = { protect, authorize };

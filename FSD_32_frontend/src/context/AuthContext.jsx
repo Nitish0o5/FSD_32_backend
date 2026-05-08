@@ -17,8 +17,15 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = (userData) => {
-        setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
+        // Accept either full API response ({ success, message, token, user })
+        // or a plain user object. Normalize to the user object.
+        const normalized = userData?.user ? userData.user : userData;
+        // Preserve token from API response so axios interceptor can use it
+        if (userData?.token) {
+            normalized.token = userData.token;
+        }
+        setUser(normalized);
+        localStorage.setItem('user', JSON.stringify(normalized));
     };
 
     const logout = async () => {

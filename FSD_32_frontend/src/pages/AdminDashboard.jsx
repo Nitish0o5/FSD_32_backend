@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 
-const roleOptions = ['EMPLOYEE', 'TRAINER', 'ADMIN'];
+const roleOptions = ['learner', 'instructor', 'admin'];
 
 const AdminDashboard = () => {
     const [users, setUsers] = useState([]);
@@ -60,16 +60,16 @@ const AdminDashboard = () => {
                         <h3>{stats.totalUsers}</h3>
                     </div>
                     <div className="card">
-                        <p className="text-secondary">Total Trainings</p>
-                        <h3>{stats.totalTrainings}</h3>
+                        <p className="text-secondary">Total Courses</p>
+                        <h3>{stats.totalCourses}</h3>
                     </div>
                     <div className="card">
                         <p className="text-secondary">Total Enrollments</p>
                         <h3>{stats.totalEnrollments}</h3>
                     </div>
                     <div className="card">
-                        <p className="text-secondary">Open Trainings</p>
-                        <h3>{stats.openTrainings}</h3>
+                        <p className="text-secondary">Completion Rate</p>
+                        <h3>{stats.completionRate || '0%'}</h3>
                     </div>
                 </div>
             )}

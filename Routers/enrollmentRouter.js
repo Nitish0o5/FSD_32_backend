@@ -1,14 +1,19 @@
 import express from 'express';
-import { enrollInTraining, getMyEnrollments, getTrainingEnrollments } from '../Controller/enrollmentController.js';
+import {
+  enrollInCourse,
+  getMyLearning,
+  updateProgress,
+  submitReview,
+  dropCourse,
+} from '../Controller/enrollmentController.js';
 import { protect, authorize } from '../Middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Employee routes
-router.post('/:trainingId', protect, authorize('EMPLOYEE'), enrollInTraining);
-router.get('/my-enrollments', protect, authorize('EMPLOYEE'), getMyEnrollments);
-
-// Trainer routes
-router.get('/training/:trainingId', protect, authorize('TRAINER'), getTrainingEnrollments);
+router.post('/:courseId', protect, authorize('learner'), enrollInCourse);
+router.get('/my-learning', protect, authorize('learner'), getMyLearning);
+router.put('/:courseId/progress', protect, authorize('learner'), updateProgress);
+router.put('/:courseId/review', protect, authorize('learner'), submitReview);
+router.delete('/:courseId', protect, authorize('learner'), dropCourse);
 
 export default router;

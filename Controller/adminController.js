@@ -1,74 +1,107 @@
 import User from '../Models/userModel.js';
-import Training from '../Models/trainingModel.js';
+import Course from '../Models/courseModel.js';
 import Enrollment from '../Models/enrollmentModel.js';
+import { asyncHandler } from '../Middleware/errorMiddleware.js';
 
-// @desc    List all users
-// @route   GET /api/admin/users
-// @access  Private/Admin
-export const getAllUsers = async (req, res) => {
-    try {
-        const users = await User.find().select('-password').sort({ createdAt: -1 });
-        res.status(200).json(users);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-// @desc    Update user role
-// @route   PUT /api/admin/users/:id/role
-// @access  Private/Admin
-export const updateUserRole = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { role } = req.body;
-
-        if (!['EMPLOYEE', 'TRAINER', 'ADMIN'].includes(role)) {
-            return res.status(400).json({ message: 'Invalid role' });
-        }
-
-        const user = await User.findById(id);
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        // Prevent accidental lockout by changing your own role.
-        if (user._id.toString() === req.user._id.toString() && role !== 'ADMIN') {
-            return res.status(400).json({ message: 'You cannot remove your own admin role' });
-        }
-
-        user.role = role;
-        const updatedUser = await user.save();
-
-        res.status(200).json({
-            _id: updatedUser._id,
-            name: updatedUser.name,
-            email: updatedUser.email,
-            role: updatedUser.role
-        });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-// @desc    Admin dashboard stats
+// @desc    Get platform stats
 // @route   GET /api/admin/stats
-// @access  Private/Admin
-export const getAdminStats = async (req, res) => {
-    try {
-        const [totalUsers, totalTrainings, totalEnrollments, openTrainings] = await Promise.all([
+// @access  Private (Admin)
+const getStats = asyncHandler(async (req, res) => {
+    const [totalUsers, totalCourses, totalEnrollments, completedEnrollments] =
+        await Promise.all([
             User.countDocuments(),
-            Training.countDocuments(),
-            Enrollment.countDocuments(),
-            Training.countDocuments({ $expr: { $lt: ['$seatsFilled', '$seatLimit'] } })
+            Course.countDocuments({ status: 'published' }),
+            Enrollment.countDocuments({ status: { $in: ['active', 'completed'] } }),
+            Enrollment.countDocuments({ status: 'completed' }),
         ]);
 
-        res.status(200).json({
+    const learners = await User.countDocuments({ role: 'learner' });
+    const instructors = await User.countDocuments({ role: 'instructor' });
+
+    // Top 5 courses by enrollment
+    const topCourses = await Course.find({ status: 'published' })
+        .sort('-enrollmentCount')
+        .limit(5)
+        .select('title enrollmentCount ratings category');
+
+    res.status(200).json({
+        success: true,
+        stats: {
             totalUsers,
-            totalTrainings,
+            learners,
+            instructors,
+            totalCourses,
             totalEnrollments,
-            openTrainings
-        });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
+            completedEnrollments,
+            completionRate:
+                totalEnrollments > 0
+                    ? ((completedEnrollments / totalEnrollments) * 100).toFixed(1) + '%'
+                    : '0%',
+        },
+        topCourses,
+    });
+});
+
+// @desc    Get all users
+// @route   GET /api/admin/users
+// @access  Private (Admin)
+const getAllUsers = asyncHandler(async (req, res) => {
+    const { role, page = 1, limit = 20 } = req.query;
+    const filter = role ? { role } : {};
+    const skip = (page - 1) * limit;
+
+    const users = await User.find(filter)
+        .sort('-createdAt')
+        .skip(skip)
+        .limit(Number(limit));
+
+    const total = await User.countDocuments(filter);
+
+    res.status(200).json({ success: true, total, users });
+});
+
+// @desc    Toggle user active status
+// @route   PUT /api/admin/users/:id/toggle
+// @access  Private (Admin)
+const toggleUserStatus = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found.' });
     }
-};
+
+    user.isActive = !user.isActive;
+    await user.save();
+
+    res.status(200).json({
+        success: true,
+        message: `User ${user.isActive ? 'activated' : 'deactivated'} successfully.`,
+    });
+});
+
+// @desc    Publish or unpublish a course
+// @route   PUT /api/admin/courses/:id/status
+// @access  Private (Admin)
+const updateCourseStatus = asyncHandler(async (req, res) => {
+    const { status } = req.body;
+
+    const course = await Course.findByIdAndUpdate(
+        req.params.id,
+        { status },
+        { new: true }
+    );
+
+    if (!course) {
+        return res
+            .status(404)
+            .json({ success: false, message: 'Course not found.' });
+    }
+
+    res.status(200).json({
+        success: true,
+        message: `Course "${course.title}" is now ${status}.`,
+        course,
+    });
+});
+
+export { getStats, getAllUsers, toggleUserStatus, updateCourseStatus };

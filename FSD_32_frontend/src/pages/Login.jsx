@@ -21,7 +21,10 @@ const Login = () => {
             login(data);
             navigate('/');
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to login');
+            console.error('Login error:', err);
+            const serverData = err.response?.data;
+            const serverMessage = serverData?.message || (serverData ? JSON.stringify(serverData) : null);
+            setError(serverMessage || err.message || 'Failed to login');
         } finally {
             setLoading(false);
         }

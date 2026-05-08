@@ -8,7 +8,7 @@ const Register = () => {
         name: '',
         email: '',
         password: '',
-        role: 'EMPLOYEE'
+        role: 'learner'
     });
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -91,8 +91,8 @@ const Register = () => {
                             onChange={handleChange}
                             required
                         >
-                            <option value="EMPLOYEE">Employee (Learn)</option>
-                            <option value="TRAINER">Trainer (Teach)</option>
+                            <option value="learner">Learner (Take Courses)</option>
+                            <option value="instructor">Instructor (Teach Courses)</option>
                         </select>
                     </div>
                     <button type="submit" className="btn btn-primary btn-full" disabled={loading}>

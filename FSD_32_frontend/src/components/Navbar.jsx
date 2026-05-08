@@ -24,10 +24,10 @@ const Navbar = () => {
                     <span className="text-secondary" style={{ fontSize: '0.875rem' }}>
                         Hello, {user.name} ({user.role})
                     </span>
-                    {user.role === 'TRAINER' ? (
+                    {user.role === 'instructor' ? (
                         <>
                             <Link to="/" className="nav-link">Dashboard</Link>
-                            <Link to="/create-training" className="nav-link">Create Training</Link>
+                            <Link to="/create-course" className="nav-link">Create Course</Link>
                         </>
                     ) : user.role === 'ADMIN' ? (
                         <>
@@ -36,8 +36,8 @@ const Navbar = () => {
                         </>
                     ) : (
                         <>
-                            <Link to="/" className="nav-link">Trainings</Link>
-                            <Link to="/my-enrollments" className="nav-link">My Enrollments</Link>
+                            <Link to="/" className="nav-link">Courses</Link>
+                            <Link to="/my-enrollments" className="nav-link">My Learning</Link>
                         </>
                     )}
                     <button onClick={handleLogout} className="btn btn-secondary">

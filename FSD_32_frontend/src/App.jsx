@@ -31,9 +31,9 @@ function App() {
           path="/"
           element={
             <ProtectedRoute>
-              {user?.role === 'TRAINER'
+              {user?.role === 'instructor'
                 ? <TrainerDashboard />
-                : user?.role === 'ADMIN'
+                : user?.role === 'admin'
                   ? <AdminDashboard />
                   : <EmployeeDashboard />}
             </ProtectedRoute>
@@ -43,27 +43,27 @@ function App() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute roles={['ADMIN']}>
+            <ProtectedRoute roles={['admin']}>
               <AdminDashboard />
             </ProtectedRoute>
           }
         />
 
-        {/* Trainer Routes */}
+        {/* Instructor Routes */}
         <Route
-          path="/create-training"
+          path="/create-course"
           element={
-            <ProtectedRoute roles={['TRAINER']}>
+            <ProtectedRoute roles={['instructor', 'admin']}>
               <CreateTraining />
             </ProtectedRoute>
           }
         />
 
-        {/* Employee Routes */}
+        {/* Learner Routes */}
         <Route
           path="/my-enrollments"
           element={
-            <ProtectedRoute roles={['EMPLOYEE']}>
+            <ProtectedRoute roles={['learner']}>
               <MyEnrollments />
             </ProtectedRoute>
           }
