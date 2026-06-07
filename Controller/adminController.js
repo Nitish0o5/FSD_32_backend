@@ -104,4 +104,30 @@ const updateCourseStatus = asyncHandler(async (req, res) => {
     });
 });
 
-export { getStats, getAllUsers, toggleUserStatus, updateCourseStatus };
+// @desc    Update user role
+// @route   PUT /api/admin/users/:id/role
+// @access  Private (Admin)
+const updateUserRole = asyncHandler(async (req, res) => {
+    const { role } = req.body;
+
+    if (!['learner', 'instructor', 'admin'].includes(role)) {
+        return res.status(400).json({ success: false, message: 'Invalid role.' });
+    }
+
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    user.role = role;
+    await user.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+        success: true,
+        message: `User role updated to ${role}.`,
+        user: { _id: user._id, name: user.name, email: user.email, role: user.role },
+    });
+});
+
+export { getStats, getAllUsers, toggleUserStatus, updateCourseStatus, updateUserRole };

@@ -22,8 +22,8 @@ const AdminDashboard = () => {
                 api.get('/admin/stats')
             ]);
 
-            setUsers(usersRes.data);
-            setStats(statsRes.data);
+            setUsers(usersRes.data.users || []);
+            setStats(statsRes.data.stats || null);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to load admin data');
         } finally {
@@ -37,7 +37,7 @@ const AdminDashboard = () => {
             setError(null);
 
             const { data } = await api.put(`/admin/users/${userId}/role`, { role: nextRole });
-            setUsers((prev) => prev.map((u) => (u._id === userId ? { ...u, role: data.role } : u)));
+            setUsers((prev) => prev.map((u) => (u._id === userId ? { ...u, role: data.user?.role || nextRole } : u)));
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to update role');
         } finally {
