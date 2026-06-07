@@ -21,12 +21,16 @@ const EmployeeDashboard = () => {
             if (nextFilters.level !== 'all') params.level = nextFilters.level;
 
             setError(null);
-            const [coursesRes, statsRes] = await Promise.all([
-                api.get('/courses', { params }),
-                api.get('/stats')
-            ]);
+            const coursesRes = await api.get('/courses', { params });
             setCourses(coursesRes.data.courses);
-            setStats(statsRes.data.stats);
+
+            // Stats fetch is non-blocking — may fail for non-admin users
+            try {
+                const statsRes = await api.get('/stats/dashboard');
+                setStats(statsRes.data);
+            } catch {
+                // Stats not available — not critical
+            }
         } catch {
             setError('Failed to fetch courses');
         } finally {
