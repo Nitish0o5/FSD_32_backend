@@ -38,6 +38,8 @@ app.use(cors({
     if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) return callback(null, true);
     // Allow any localhost origin during development (ports may vary)
     if (origin.includes('localhost')) return callback(null, true);
+    // Allow Vercel preview/production deployments
+    if (origin.endsWith('.vercel.app') || origin.includes('vercel.app')) return callback(null, true);
     // Otherwise reject
     return callback(new Error('Not allowed by CORS'));
   },
